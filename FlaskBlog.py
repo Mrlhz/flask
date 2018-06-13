@@ -1,12 +1,56 @@
-from flask import Flask
+import os
+from datetime import datetime
+from flask import Flask, render_template, session, flash, redirect, url_for
+from flask_bootstrap import Bootstrap
+from flask_moment import Moment
+from flask_sqlalchemy import SQLAlchemy
+
+from form import NameForm
+
+basedir = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'hard to guess string'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'data.sqlite3')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+bootstrap = Bootstrap(app)
+moment = Moment(app)
 
 
-@app.route('/')
-def hello_world():
-    return 'Hello World!'
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
 
 
-if __name__ == '__main__':
-    app.run()
+@app.errorhandler(500)
+def internal_server_error(e):
+    return render_template('500.html'), 500
+
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    name = None
+    form = NameForm()
+    if form.validate_on_submit():
+        old_name = session.get('name')
+        if old_name is not None and old_name != form.name.data:
+            flash('Looks like you have changed your name!')
+        session['name'] = form.name.data
+        return redirect(url_for('index'))
+        # form.name.data = ''  # 清空表单字段
+    return render_template('index.html',
+                           current_time=datetime.utcnow(),
+                           form=form,
+                           name=session.get('name'))
+
+
+@app.route('/user/<name>')
+def user(name):
+    return render_template('user.html', name=name)
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
